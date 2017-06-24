@@ -6,11 +6,11 @@ import random
 
 from lxml import etree
 
-from tutorial import getProxy
+from ..getProxy import Proxy
 
-# from ..items import tutorialItem
+from ..items import TutorialItem
 
-proxy = getProxy.Proxy()
+proxy = Proxy()
 
 
 class QuotesSpider(scrapy.Spider):
@@ -33,16 +33,15 @@ class QuotesSpider(scrapy.Spider):
         lists = response.body.decode('utf-8')
         selector = etree.HTML(lists)
         area_list = selector.xpath('/html/body/div[1]/div[2]/div[3]/div[1]/span[2]/a')
-        # print('lists', lists)
+        area_list.pop()
+
+        print('area_list', area_list)
         for area in area_list:
             # print(area)
             try:
-                area_han = area.xpath('text()').pop()  # 地点
-
                 url = area.xpath('@href').pop()  # 拼音
                 print('url', url)
-                # area_url = 'http://dl.lianjia.com/ershoufang/{}/'.format(area_pin)
-                yield scrapy.Request(url=url, headers=headers, callback=self.detail_url)
+                yield scrapy.Request(url=url, headers=headers, callback=self.detail_url, meta={'area': url})
             except Exception as e:
                 pass
 
@@ -54,19 +53,41 @@ class QuotesSpider(scrapy.Spider):
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive'}
         # print('response', response.body.decode('utf-8'))
-        for i in range(1, 100):
-            time.sleep(5)
+        for i in range(1, 50):
+            time.sleep(2)
+
             index = random.randint(1, 100)
             ip = proxy.get_proxy()[index]
+            print('ip', ip)
             proxy_ip = {'HTTPS': ip}
-            url = 'https://dalian.anjuke.com/sale/ganjingzi/p{}/#filtersort'.format(str(i))
+
+            area = response.meta['area']
+
+            print('area', str(area))
+            url = area + 'p{}/#filtersort'.format(str(i))
+            # url = 'https://dalian.anjuke.com/sale/ganjingzi/p{}/#filtersort'.format(str(i))
             contents = requests.get(url, headers=headers, proxies=proxy_ip)
             contents = etree.HTML(contents.content.decode('utf-8'))
             house_list = contents.xpath('/html/body/div[1]/div[2]/div[4]/ul[1]/li')
 
             print('house_list', house_list)
             print('次数', i)
-            # contents = etree.HTML(contents)
+
+            for house in house_list:
+                print('house', house)
+                item = TutorialItem()
+                try:
+                    item['title'] = house.xpath('div[2]/div[1]/a/text()')
+                    item['address'] = house.xpath('div[2]/div[3]/span/text()')
+                    item['model'] = house.xpath('div[2]/div[2]/span[1]/text()')
+                    item['area'] = house.xpath('div[2]/div[2]/span[2]/text()')
+                    item['time'] = house.xpath('div[2]/div[2]/span[4]/text()')
+                    item['price'] = house.xpath('div[3]/span[1]/strong[1]/text()')
+                    item['average_price'] = house.xpath('div[3]/span[2]/text()')
+                except Exception as e:
+                    pass
+                yield item
+                # contents = etree.HTML(contents)
 
 
-            # house_list = contents.xpath('/html/body/div[4]/div[1]/ul/li/div[1]')
+                # house_list = contents.xpath('/html/body/div[4]/div[1]/ul/li/div[1]')
